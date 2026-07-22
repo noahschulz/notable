@@ -7,6 +7,9 @@ on:
     branches: ["main", "dev"]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build Android APK
@@ -30,9 +33,27 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
+      - name: Prepare APK Output
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/notable-musnap.apk
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: notable-musnap-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: notable-musnap-apk
+          path: app/build/outputs/apk/debug/notable-musnap.apk
           if-no-files-found: error
+
+      - name: Release Pre-built APK
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/debug/notable-musnap.apk
+          tag_name: musnap-latest
+          name: Musnap Aura C Build
+          prerelease: true
+          make_latest: true
+          body: |
+            ### Notable Musnap Aura C Build
+            - **Branch:** `${{ github.ref_name }}`
+            - **Commit:** `${{ github.sha }}`
+          token: ${{ secrets.GITHUB_TOKEN }}
