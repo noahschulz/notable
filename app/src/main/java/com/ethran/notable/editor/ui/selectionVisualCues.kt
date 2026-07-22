@@ -29,8 +29,10 @@ fun SelectionVisualCues(crossPosition: IntOffset?, rectangleBounds: Rect?) {
     )
     {
         val density = LocalDensity.current
-        // Draw cross where finger is touching
-        DrawCross(crossPosition, density)
+        // Draw cross only when selection rectangle is being dragged
+        if (rectangleBounds != null) {
+            DrawCross(crossPosition, density)
+        }
         // Draw the rectangle while dragging
         DrawRectangle(rectangleBounds, density)
     }

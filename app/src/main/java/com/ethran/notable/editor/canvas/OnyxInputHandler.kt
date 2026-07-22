@@ -417,9 +417,6 @@ class OnyxInputHandler(
 
                 val p = createStrokePoint(event.x, event.y, event.pressure, event.eventTime)
                 motionEventPoints.add(p)
-
-                drawCanvas.glRenderer.clearPointBuffer()
-                drawCanvas.glRenderer.onTouchListener.onTouch(drawCanvas, event)
             }
 
             android.view.MotionEvent.ACTION_MOVE -> {
@@ -437,8 +434,6 @@ class OnyxInputHandler(
 
                 val p = createStrokePoint(event.x, event.y, event.pressure, event.eventTime)
                 motionEventPoints.add(p)
-
-                drawCanvas.glRenderer.onTouchListener.onTouch(drawCanvas, event)
             }
 
             android.view.MotionEvent.ACTION_UP -> {
@@ -447,8 +442,6 @@ class OnyxInputHandler(
 
                 val p = createStrokePoint(event.x, event.y, event.pressure, event.eventTime)
                 motionEventPoints.add(p)
-
-                drawCanvas.glRenderer.onTouchListener.onTouch(drawCanvas, event)
 
                 val pointsToCommit = motionEventPoints.toList()
                 motionEventPoints.clear()
@@ -461,7 +454,6 @@ class OnyxInputHandler(
             android.view.MotionEvent.ACTION_CANCEL -> {
                 isMotionEventActive = false
                 motionEventPoints.clear()
-                drawCanvas.glRenderer.onTouchListener.onTouch(drawCanvas, event)
             }
         }
         return true
@@ -474,22 +466,13 @@ class OnyxInputHandler(
         when (toolbarState.mode) {
             Mode.Erase -> {
                 val simplePoints = points.map { com.ethran.notable.data.model.SimplePointF(it.x, it.y) }
-                val padding = 10
-                val boundingBox = calculateBoundingBox(points) { Pair(it.x, it.y) }.toRect()
-                val zoneEffected = handleErase(
+                handleErase(
                     drawCanvas.page,
                     history,
                     simplePoints,
                     eraser = toolbarState.eraser
                 )
-                val dirtyRect = Rect(
-                    boundingBox.left.toInt() - padding,
-                    boundingBox.top.toInt() - padding,
-                    boundingBox.right.toInt() + padding,
-                    boundingBox.bottom.toInt() + padding
-                )
-                zoneEffected?.let { dirtyRect.union(it) }
-                drawCanvas.refreshManager.refreshUi(dirtyRect)
+                drawCanvas.refreshManager.refreshUi(null)
                 coroutineScope.launch(Dispatchers.Default) {
                     CanvasEventBus.commitHistorySignal.emit(Unit)
                 }
@@ -503,15 +486,7 @@ class OnyxInputHandler(
                     viewModel = viewModel,
                     points = simplePoints
                 )
-                val boundingBox = calculateBoundingBox(simplePoints) { Pair(it.x, it.y) }.toRect()
-                val padding = 10
-                val dirtyRect = Rect(
-                    boundingBox.left - padding,
-                    boundingBox.top - padding,
-                    boundingBox.right + padding,
-                    boundingBox.bottom + padding
-                )
-                drawCanvas.refreshManager.refreshUi(dirtyRect)
+                drawCanvas.refreshManager.refreshUi(null)
             }
 
             Mode.Line -> {
@@ -527,13 +502,7 @@ class OnyxInputHandler(
                         toolbarState.pen,
                         linePoints
                     )
-                    val dirtyRect = Rect(
-                        min(startPoint.x, endPoint.x).toInt(),
-                        min(startPoint.y, endPoint.y).toInt(),
-                        max(startPoint.x, endPoint.x).toInt(),
-                        max(startPoint.y, endPoint.y).toInt()
-                    )
-                    drawCanvas.refreshManager.refreshUi(dirtyRect)
+                    drawCanvas.refreshManager.refreshUi(null)
                     coroutineScope.launch(Dispatchers.Default) {
                         CanvasEventBus.commitHistorySignal.emit(Unit)
                     }
@@ -549,15 +518,7 @@ class OnyxInputHandler(
                     toolbarState.pen,
                     points
                 )
-                val boundingBox = calculateBoundingBox(points) { Pair(it.x, it.y) }.toRect()
-                val padding = (toolbarState.activePenSetting.strokeSize * 2).toInt()
-                val dirtyRect = Rect(
-                    boundingBox.left.toInt() - padding,
-                    boundingBox.top.toInt() - padding,
-                    boundingBox.right.toInt() + padding,
-                    boundingBox.bottom.toInt() + padding
-                )
-                drawCanvas.refreshManager.refreshUi(dirtyRect)
+                drawCanvas.refreshManager.refreshUi(null)
                 coroutineScope.launch(Dispatchers.Default) {
                     CanvasEventBus.commitHistorySignal.emit(Unit)
                 }
