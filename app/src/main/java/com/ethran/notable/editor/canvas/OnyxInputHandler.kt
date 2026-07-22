@@ -387,4 +387,181 @@ class OnyxInputHandler(
         drawCanvas.refreshManager.commitErase(dirty, areaErase = toolbarState.eraser == Eraser.SELECT)
     }
 
+    private val motionEventPoints = mutableListOf<com.ethran.notable.data.db.StrokePoint>()
+    private var isMotionEventActive = false
+    private var motionEventStartTime = 0L
+
+    fun handleMotionEvent(event: android.view.MotionEvent): Boolean {
+        val action = event.actionMasked
+        val scale = page.zoomLevel.value
+        val scroll = page.scroll
+
+        fun createStrokePoint(x: Float, y: Float, rawPressure: Float, timeMs: Long): com.ethran.notable.data.db.StrokePoint {
+            val pressure = if (rawPressure > 0f) rawPressure.coerceIn(0f, 1f) else 1f
+            val dt = if (motionEventStartTime > 0L) (timeMs - motionEventStartTime).coerceIn(0L, 65534L).toUShort() else 0.toUShort()
+            return com.ethran.notable.data.db.StrokePoint(
+                x = x / scale + scroll.x,
+                y = y / scale + scroll.y,
+                pressure = pressure,
+                tiltX = event.getAxisValue(android.view.MotionEvent.AXIS_TILT).toInt(),
+                tiltY = 0,
+                dt = dt
+            )
+        }
+
+        when (action) {
+            android.view.MotionEvent.ACTION_DOWN -> {
+                isMotionEventActive = true
+                motionEventPoints.clear()
+                motionEventStartTime = event.eventTime
+
+                val p = createStrokePoint(event.x, event.y, event.pressure, event.eventTime)
+                motionEventPoints.add(p)
+
+                drawCanvas.glRenderer.clearPointBuffer()
+                drawCanvas.glRenderer.onTouchListener.onTouch(drawCanvas, event)
+            }
+
+            android.view.MotionEvent.ACTION_MOVE -> {
+                if (!isMotionEventActive) return false
+                val historySize = event.historySize
+
+                for (h in 0 until historySize) {
+                    val hx = event.getHistoricalX(h)
+                    val hy = event.getHistoricalY(h)
+                    val hp = event.getHistoricalPressure(h)
+                    val ht = event.getHistoricalEventTime(h)
+                    val p = createStrokePoint(hx, hy, hp, ht)
+                    motionEventPoints.add(p)
+                }
+
+                val p = createStrokePoint(event.x, event.y, event.pressure, event.eventTime)
+                motionEventPoints.add(p)
+
+                drawCanvas.glRenderer.onTouchListener.onTouch(drawCanvas, event)
+            }
+
+            android.view.MotionEvent.ACTION_UP -> {
+                if (!isMotionEventActive) return false
+                isMotionEventActive = false
+
+                val p = createStrokePoint(event.x, event.y, event.pressure, event.eventTime)
+                motionEventPoints.add(p)
+
+                drawCanvas.glRenderer.onTouchListener.onTouch(drawCanvas, event)
+
+                val pointsToCommit = motionEventPoints.toList()
+                motionEventPoints.clear()
+
+                if (pointsToCommit.isNotEmpty()) {
+                    processNonOnyxPoints(pointsToCommit)
+                }
+            }
+
+            android.view.MotionEvent.ACTION_CANCEL -> {
+                isMotionEventActive = false
+                motionEventPoints.clear()
+                drawCanvas.glRenderer.onTouchListener.onTouch(drawCanvas, event)
+            }
+        }
+        return true
+    }
+
+    private fun processNonOnyxPoints(points: List<com.ethran.notable.data.db.StrokePoint>) {
+        if (points.isEmpty()) return
+        lastStrokeEndTime = System.currentTimeMillis()
+
+        when (toolbarState.mode) {
+            Mode.Erase -> {
+                val simplePoints = points.map { com.ethran.notable.data.model.SimplePointF(it.x, it.y) }
+                val padding = 10
+                val boundingBox = calculateBoundingBox(points) { Pair(it.x, it.y) }.toRect()
+                val zoneEffected = handleErase(
+                    drawCanvas.page,
+                    history,
+                    simplePoints,
+                    eraser = toolbarState.eraser
+                )
+                val dirtyRect = Rect(
+                    boundingBox.left.toInt() - padding,
+                    boundingBox.top.toInt() - padding,
+                    boundingBox.right.toInt() + padding,
+                    boundingBox.bottom.toInt() + padding
+                )
+                zoneEffected?.let { dirtyRect.union(it) }
+                drawCanvas.refreshManager.refreshUi(dirtyRect)
+                coroutineScope.launch(Dispatchers.Default) {
+                    CanvasEventBus.commitHistorySignal.emit(Unit)
+                }
+            }
+
+            Mode.Select -> {
+                val simplePoints = points.map { com.ethran.notable.data.model.SimplePointF(it.x, it.y) }
+                handleSelect(
+                    scope = coroutineScope,
+                    page = drawCanvas.page,
+                    viewModel = viewModel,
+                    points = simplePoints
+                )
+                val boundingBox = calculateBoundingBox(simplePoints) { Pair(it.x, it.y) }.toRect()
+                val padding = 10
+                val dirtyRect = Rect(
+                    boundingBox.left - padding,
+                    boundingBox.top - padding,
+                    boundingBox.right + padding,
+                    boundingBox.bottom + padding
+                )
+                drawCanvas.refreshManager.refreshUi(dirtyRect)
+            }
+
+            Mode.Line -> {
+                if (points.size >= 2) {
+                    val startPoint = points.first()
+                    val endPoint = points.last()
+                    val linePoints = transformToLine(startPoint, endPoint)
+                    handleDraw(
+                        drawCanvas.page,
+                        strokeHistoryBatch,
+                        toolbarState.activePenSetting.strokeSize,
+                        toolbarState.activePenSetting.color,
+                        toolbarState.pen,
+                        linePoints
+                    )
+                    val dirtyRect = Rect(
+                        min(startPoint.x, endPoint.x).toInt(),
+                        min(startPoint.y, endPoint.y).toInt(),
+                        max(startPoint.x, endPoint.x).toInt(),
+                        max(startPoint.y, endPoint.y).toInt()
+                    )
+                    drawCanvas.refreshManager.refreshUi(dirtyRect)
+                    coroutineScope.launch(Dispatchers.Default) {
+                        CanvasEventBus.commitHistorySignal.emit(Unit)
+                    }
+                }
+            }
+
+            Mode.Draw -> {
+                handleDraw(
+                    drawCanvas.page,
+                    strokeHistoryBatch,
+                    toolbarState.activePenSetting.strokeSize,
+                    toolbarState.activePenSetting.color,
+                    toolbarState.pen,
+                    points
+                )
+                val boundingBox = calculateBoundingBox(points) { Pair(it.x, it.y) }.toRect()
+                val padding = (toolbarState.activePenSetting.strokeSize * 2).toInt()
+                val dirtyRect = Rect(
+                    boundingBox.left.toInt() - padding,
+                    boundingBox.top.toInt() - padding,
+                    boundingBox.right.toInt() + padding,
+                    boundingBox.bottom.toInt() + padding
+                )
+                drawCanvas.refreshManager.refreshUi(dirtyRect)
+                coroutineScope.launch(Dispatchers.Default) {
+                    CanvasEventBus.commitHistorySignal.emit(Unit)
+                }
+            }
+        }
+    }
 }

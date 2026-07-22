@@ -79,12 +79,17 @@ object EpdRefreshArbiter {
     // reference:
     // https://github.com/onyx-intl/OnyxAndroidDemo/blob/d3a1ffd3af231fe4de60a2a0da692c17cb35ce31/app/OnyxPenDemo/src/main/java/com/onyx/android/eink/pen/demo/ui/PenDemoActivity.java#L500
     private fun setAnimationMode(isAnimationMode: Boolean) {
-        if (isAnimationMode) {
-            EpdController.applyTransientUpdate(UpdateMode.ANIMATION_X)
-            log.d("Animation mode enabled")
-        } else {
-            EpdController.clearTransientUpdate(true)
-            log.d("Animation mode disabled")
+        if (!com.ethran.notable.editor.utils.DeviceCompat.isOnyxDevice) return
+        try {
+            if (isAnimationMode) {
+                EpdController.applyTransientUpdate(UpdateMode.ANIMATION_X)
+                log.d("Animation mode enabled")
+            } else {
+                EpdController.clearTransientUpdate(true)
+                log.d("Animation mode disabled")
+            }
+        } catch (e: Exception) {
+            log.w("setAnimationMode failed: ${e.message}")
         }
     }
 }

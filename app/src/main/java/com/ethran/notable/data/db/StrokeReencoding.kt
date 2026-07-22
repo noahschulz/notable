@@ -50,7 +50,7 @@ class StrokeMigrationHelper @Inject constructor(
         var batchSize = 1500
         // Legacy JSON rows carry raw digitizer pressure from this device; normalize to
         // [0,1] before encoding (the SB v2 pressure channel is normalized fixed-point).
-        val rawMaxPressure = EpdController.getMaxTouchPressure().takeIf { it > 0f } ?: 4096f
+        val rawMaxPressure = (if (com.ethran.notable.editor.utils.DeviceCompat.isOnyxDevice) EpdController.getMaxTouchPressure() else 4096f).takeIf { it > 0f } ?: 4096f
 
         while (true) {
             val remaining = countRemaining(db, "stroke_old")

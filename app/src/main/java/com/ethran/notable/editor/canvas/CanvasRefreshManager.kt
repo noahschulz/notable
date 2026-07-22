@@ -116,19 +116,21 @@ class CanvasRefreshManager(
                 log.e("commitErase: failed to lock canvas (surface invalid/destroyed)")
                 return
             }
-            // enablePost(0)+enablePost(1) forces the bitmap through to the EPD even while the
-            // screen is frozen (a bare unlockCanvasAndPost is swallowed). Mirrors kreader's
-            // RxBaseReaderRequest.unlockCanvas.
-            EpdController.enablePost(0)
-            EpdController.enablePost(1)
+            if (DeviceCompat.isOnyxDevice) {
+                try {
+                    EpdController.enablePost(0)
+                    EpdController.enablePost(1)
+                } catch (_: Exception) {}
+            }
             canvas.drawBitmap(page.windowedBitmap, zoneToRedraw, zoneToRedraw, Paint())
         } catch (e: IllegalStateException) {
             log.w("Surface released during erase draw", e)
         } finally {
             try {
                 if (canvas != null) drawCanvas.holder.unlockCanvasAndPost(canvas)
-                // Let the EPD apply the pushed region (kreader's afterUnlockCanvas equivalent).
-                EpdController.resetViewUpdateMode(drawCanvas)
+                if (DeviceCompat.isOnyxDevice) {
+                    try { EpdController.resetViewUpdateMode(drawCanvas) } catch (_: Exception) {}
+                }
             } catch (e: IllegalStateException) {
                 log.w("Surface released during unlock", e)
             }

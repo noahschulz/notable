@@ -214,7 +214,11 @@ class BugReportGenerator(
         val batteryPct = getBatteryPercentage(context)
         val threadCount = Thread.activeCount()
         val buildType = getSignature(context)
-        val deviceName = Device.currentDevice().javaClass.name
+        val deviceName = if (com.ethran.notable.editor.utils.DeviceCompat.isOnyxDevice) {
+            try { Device.currentDevice().javaClass.name } catch (_: Exception) { Build.MODEL }
+        } else {
+            Build.MODEL
+        }
 
         return """
         |• Device: ${Build.MANUFACTURER} ${Build.MODEL} (Android ${Build.VERSION.RELEASE},  SDK ${Build.VERSION.SDK_INT})

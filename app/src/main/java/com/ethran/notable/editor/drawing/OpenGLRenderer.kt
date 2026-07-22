@@ -152,12 +152,16 @@ class OpenGLRenderer(
     }
 
     fun attachSurfaceView(surfaceView: SurfaceView) {
-        if (isAttached) {
-            Log.w("OpenGLRenderer", "Already attached, releasing old renderer first")
-            release()
+        try {
+            if (isAttached) {
+                Log.w("OpenGLRenderer", "Already attached, releasing old renderer first")
+                release()
+            }
+            frontBufferRenderer = GLFrontBufferedRenderer(surfaceView, this)
+            motionEventPredictor = MotionEventPredictor.newInstance(surfaceView)
+        } catch (e: Exception) {
+            Log.e("OpenGLRenderer", "Failed to attach GLFrontBufferedRenderer: ${e.message}")
         }
-        frontBufferRenderer = GLFrontBufferedRenderer(surfaceView, this)
-        motionEventPredictor = MotionEventPredictor.newInstance(surfaceView)
     }
 
     val isAttached: Boolean
@@ -165,8 +169,12 @@ class OpenGLRenderer(
 
     fun release() {
         Log.d("OpenGLRenderer", "Releasing renderer")
-        frontBufferRenderer?.release(true) {
-            obtainRenderer().release()
+        try {
+            frontBufferRenderer?.release(true) {
+                obtainRenderer().release()
+            }
+        } catch (e: Exception) {
+            Log.e("OpenGLRenderer", "Failed to release GLFrontBufferedRenderer: ${e.message}")
         }
         frontBufferRenderer = null
     }
@@ -186,8 +194,6 @@ class OpenGLRenderer(
     val onTouchListener = View.OnTouchListener { view, event ->
         val point = getStrokePoint(event)
         motionEventPredictor?.record(event)
-        if (event.getToolType(0) != MotionEvent.TOOL_TYPE_STYLUS)
-            return@OnTouchListener true
         Log.d("MotionEvent", event.toString())
 
         when (event?.action) {

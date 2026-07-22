@@ -37,57 +37,56 @@ import kotlin.time.Duration.Companion.milliseconds
 private val log = ShipBook.getLogger("einkHelper")
 
 fun setRecommendedMode() {
-    EpdController.setAppScopeRefreshMode(UpdateOption.NORMAL)
-    log.d("Changed to NORMAL mode")
+    if (!DeviceCompat.isOnyxDevice) return
+    try {
+        EpdController.setAppScopeRefreshMode(UpdateOption.NORMAL)
+        log.d("Changed to NORMAL mode")
+    } catch (e: Exception) {
+        log.w("setRecommendedMode failed: ${e.message}")
+    }
 }
 
 fun isRecommendedRefreshMode(): Boolean {
-    val updateOption: UpdateOption = Device.currentDevice().appScopeRefreshMode
-    return updateOption == UpdateOption.NORMAL || updateOption == UpdateOption.REGAL
+    if (!DeviceCompat.isOnyxDevice) return true
+    return try {
+        val updateOption: UpdateOption = Device.currentDevice().appScopeRefreshMode
+        updateOption == UpdateOption.NORMAL || updateOption == UpdateOption.REGAL
+    } catch (e: Exception) {
+        true
+    }
 }
 
 fun getCurRefreshModeString(): String {
-    return (Device.currentDevice().appScopeRefreshMode).toString()
+    if (!DeviceCompat.isOnyxDevice) return "NORMAL"
+    return try {
+        (Device.currentDevice().appScopeRefreshMode).toString()
+    } catch (e: Exception) {
+        "NORMAL"
+    }
 }
 
-suspend fun waitForEpdRefresh(updateOption: UpdateOption = Device.currentDevice().appScopeRefreshMode) {
+suspend fun waitForEpdRefresh(updateOption: UpdateOption = UpdateOption.NORMAL) {
+    if (!DeviceCompat.isOnyxDevice) return
     log.d("Waiting for screen, Update mode: $updateOption")
-//        Device.currentDevice().waitForUpdateFinished()
-    // depending on device, it may take different amount of time to
-    // refresh the screen. So for example, when closing menus, we
-    // need to wait before we freeze screen.
 
-    // Onyx library might change
     @Suppress("REDUNDANT_ELSE_IN_WHEN")
     when (updateOption) {
         UpdateOption.NORMAL -> {
-            // HD mode
-            delay(190.milliseconds) // On my device ~160 is the minimal delay
+            delay(190.milliseconds)
         }
-
         UpdateOption.REGAL -> {
-            // regal mode
-            delay(180.milliseconds) // On my device ~150 is the minimal delay
+            delay(180.milliseconds)
         }
-
         UpdateOption.FAST -> {
-            //ultra fast, fast, balanced
-            delay(20.milliseconds) // 5ms is problematic sometimes on balanced mode.
+            delay(20.milliseconds)
         }
-
         UpdateOption.FAST_X -> {
-            // no idea what it is
-            delay(4.milliseconds) // Minimal delay
+            delay(4.milliseconds)
         }
-
         UpdateOption.FAST_QUALITY -> {
-            // no idea what it is
             delay(15.milliseconds)
         }
-
         else -> {
-            // Default fallback
-            log.e("Unknown refresh mode: $updateOption")
             delay(10.milliseconds)
         }
     }
@@ -100,6 +99,7 @@ suspend fun waitForEpdRefresh(updateOption: UpdateOption = Device.currentDevice(
  * This is necessary because the Onyx library is unstable and unreliable.
  */
 private fun tryToSetRefreshMode(view: View, mode: UpdateMode): Boolean {
+    if (!DeviceCompat.isOnyxDevice) return false
     return try {
         EpdController.setViewDefaultUpdateMode(view, mode)
         log.d("Set update mode $mode")
@@ -117,27 +117,28 @@ private fun tryToSetRefreshMode(view: View, mode: UpdateMode): Boolean {
 }
 
 fun onSurfaceInit(view: View) {
+    if (!DeviceCompat.isOnyxDevice) return
     log.v("onSurfaceInit, (${view.left}, ${view.top} - ${view.right}, ${view.bottom})")
     if (!tryToSetRefreshMode(view, UpdateMode.HAND_WRITING_REPAINT_MODE))
         tryToSetRefreshMode(view, UpdateMode.REGAL)
-    EpdController.enablePost(1)
+    try { EpdController.enablePost(1) } catch (_: Exception) {}
 }
 
 fun onSurfaceChanged(view: View) {
-    EpdController.enablePost(view, 1)
-
+    if (!DeviceCompat.isOnyxDevice) return
+    try { EpdController.enablePost(view, 1) } catch (_: Exception) {}
 }
 
 
 fun onSurfaceDestroy(view: View, touchHelper: TouchHelper?) {
-    if (touchHelper == null) return
+    if (!DeviceCompat.isOnyxDevice || touchHelper == null) return
     log.v("onSurfaceDestroy, (${view.left}, ${view.top} - ${view.right}, ${view.bottom})")
     touchHelper.setRawDrawingEnabled(false)
 }
 
 
 fun setupSurface(view: View, touchHelper: TouchHelper?, toolbarHeight: Int) {
-    if (touchHelper == null) return
+    if (!DeviceCompat.isOnyxDevice || touchHelper == null) return
     // Takes at least 50ms on Note 4c,
     // and I don't think that we need it immediately
     log.i("Setup editable surface")
@@ -289,30 +290,45 @@ fun prepareForPartialUpdate(view: View, touchHelper: TouchHelper?) {
 }
 
 fun refreshScreenRegion(view: View, dirtyRect: Rect) {
+    if (!DeviceCompat.isOnyxDevice) return
     if (!view.isAttachedToWindow) {
         log.e("View is not attached to window")
         logCallStack("refreshScreenRegion")
     }
-    EpdController.refreshScreenRegion(
-        view,
-        dirtyRect.left,
-        dirtyRect.top,
-        dirtyRect.width(),
-        dirtyRect.height(),
-        UpdateMode.ANIMATION_MONO
-    )
+    try {
+        EpdController.refreshScreenRegion(
+            view,
+            dirtyRect.left,
+            dirtyRect.top,
+            dirtyRect.width(),
+            dirtyRect.height(),
+            UpdateMode.ANIMATION_MONO
+        )
+    } catch (e: Exception) {
+        log.w("refreshScreenRegion failed: ${e.message}")
+    }
 }
 
 fun refreshScreen() {
-    EpdController.repaintEveryThing(UpdateMode.REGAL_PLUS)
+    if (!DeviceCompat.isOnyxDevice) return
+    try {
+        EpdController.repaintEveryThing(UpdateMode.REGAL_PLUS)
+    } catch (e: Exception) {
+        log.w("refreshScreen failed: ${e.message}")
+    }
 }
 
 fun restoreDefaults(view: View) {
-    EpdController.setDisplayScheme(SCHEME_NORMAL)
+    if (!DeviceCompat.isOnyxDevice) return
+    try {
+        EpdController.setDisplayScheme(SCHEME_NORMAL)
+    } catch (e: Exception) {
+        log.w("restoreDefaults failed: ${e.message}")
+    }
 }
 
 fun partialRefreshRegionOnce(view: View, dirtyRect: Rect, touchHelper: TouchHelper?) {
-    if (touchHelper == null) return
+    if (!DeviceCompat.isOnyxDevice || touchHelper == null) return
     refreshScreenRegion(view, dirtyRect)
     resetScreenFreeze(touchHelper)
 }
@@ -331,8 +347,7 @@ fun cancelPendingScreenFreezeReset() {
 }
 
 fun resetScreenFreeze(touchHelper: TouchHelper?, view: View? = null) {
-    if (touchHelper == null) {
-        log.w("touchHelper is null")
+    if (!DeviceCompat.isOnyxDevice || touchHelper == null) {
         return
     }
     // Cancel any pending resume and re-arm. While calls keep arriving (e.g. during a scroll)

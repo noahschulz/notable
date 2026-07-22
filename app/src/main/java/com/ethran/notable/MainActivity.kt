@@ -63,8 +63,8 @@ const val APP_SETTINGS_KEY = "APP_SETTINGS"
 const val PACKAGE_NAME = "com.ethran.notable"
 
 // TODO: Check if migrating to LocalConfiguration in Compose is good idea
-var SCREEN_WIDTH = EpdController.getEpdHeight().toInt()
-var SCREEN_HEIGHT = EpdController.getEpdWidth().toInt()
+var SCREEN_WIDTH = 1080
+var SCREEN_HEIGHT = 1440
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -279,13 +279,15 @@ class MainActivity : ComponentActivity() {
 
     private fun enableFullScreen() {
         // Clearer intent broadcasting syntax
-        val optimizeIntent = Intent("com.onyx.app.optimize.setting").apply {
-            putExtra("optimize_fullScreen", true)
-            putExtra(
-                "optimize_pkgName", packageName
-            ) // Use Context.packageName instead of hardcoding
+        if (DeviceCompat.isOnyxDevice) {
+            val optimizeIntent = Intent("com.onyx.app.optimize.setting").apply {
+                putExtra("optimize_fullScreen", true)
+                putExtra(
+                    "optimize_pkgName", packageName
+                ) // Use Context.packageName instead of hardcoding
+            }
+            sendBroadcast(optimizeIntent)
         }
-        sendBroadcast(optimizeIntent)
 
         // Modern, backwards-compatible AndroidX way to handle fullscreen / insets
         WindowCompat.setDecorFitsSystemWindows(window, false)

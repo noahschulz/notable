@@ -12,7 +12,9 @@ class NotableApp : Application() {
     override fun onCreate() {
         Log.i("NotableApp", "onCreate START")
         super.onCreate()
-        RxManager.Builder.initAppContext(this)
+        if (com.ethran.notable.editor.utils.DeviceCompat.isOnyxDevice) {
+            RxManager.Builder.initAppContext(this)
+        }
         checkHiddenApiBypass()
         Log.i("NotableApp", "onCreate FINISH")
     }

@@ -44,26 +44,19 @@ class DrawCanvas(
             performClick()
         }
 
-        // 2. Intercept at the highest level if a stylus is present
-        if (hasAnyStylusPointer(event)) {
-            // Block parent scrolling
-            parent?.requestDisallowInterceptTouchEvent(true)
-
-
-            // NATIVE ERASER INDICATOR:
-            // On Onyx devices the eraser stroke is now rendered natively by the firmware
-            // (see einkHelper.setupSurface -> setEraserRawDrawingEnabled), so we no longer
-            // route erase touches into the OpenGL front-buffer renderer. Non-Onyx devices
-            // still use OpenGL as their only renderer. The original condition is kept
-            // (commented) as a reference. See docs/onyx-sdk/onyx-native-eraser-indicator.md.
-            // if (!DeviceCompat.isOnyxDevice || inputHandler.isErasing) {
-            if (!DeviceCompat.isOnyxDevice) {
-                glRenderer.onTouchListener.onTouch(this, event)
+        // On non-Onyx devices (e.g. Musnap / iReader), hardware TouchHelper is null.
+        // Route touch events directly to inputHandler.handleMotionEvent.
+        if (!DeviceCompat.isOnyxDevice) {
+            if (hasAnyStylusPointer(event) || viewModel.toolbarState.value.isDrawing) {
+                parent?.requestDisallowInterceptTouchEvent(true)
+                return inputHandler.handleMotionEvent(event)
             }
-
-            // Consume completely. This prevents Compose underneath from ever
-            // seeing this event IF the stylus was the first thing to touch the screen.
-            return true
+        } else {
+            // On Onyx devices, hardware TouchHelper intercepts raw drawing automatically.
+            if (hasAnyStylusPointer(event)) {
+                parent?.requestDisallowInterceptTouchEvent(true)
+                return true
+            }
         }
         return super.dispatchTouchEvent(event)
     }
